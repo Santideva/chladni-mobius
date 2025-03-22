@@ -1,5 +1,5 @@
 // src/geometry/gridCellFactory.js
-import { GridCell } from './GridCell.js';
+import { GridCell } from './gridCell.js';
 
 // A cache to hold and share GridCell instances by key "x,y".
 const cellCache = new Map();
