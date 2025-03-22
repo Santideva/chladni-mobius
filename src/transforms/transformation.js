@@ -40,6 +40,106 @@ export function createChladniMatrix(x, y, time, amplitude, freqX, freqY, noiseSc
 }
 
 /**
+ * Applies a classical Möbius transformation to a point.
+ * The transformation follows the form f(z) = (az + b)/(cz + d) where z = x + iy
+ * @param {number} x - The original x-coordinate.
+ * @param {number} y - The original y-coordinate.
+ * @param {number} time - Current time for animation.
+ * @param {object} params - Parameters controlling the Möbius transformation.
+ * @returns {THREE.Vector3} The transformed point as a THREE.Vector3.
+ */
+function applyClassicalMobius(x, y, time, params) {
+  const { 
+    a_real = 1.0, a_imag = 0.0,
+    b_real = 0.0, b_imag = 0.0,
+    c_real = 0.0, c_imag = 0.0,
+    d_real = 1.0, d_imag = 0.0,
+    animationSpeed = 0.1
+  } = params;
+  
+  // Convert (x,y) to complex number z = x + iy
+  let z_real = x;
+  let z_imag = y;
+  
+  // Add time-based animation to the parameters
+  const timePhase = time * animationSpeed;
+  const a = {
+    real: a_real * Math.cos(timePhase) - a_imag * Math.sin(timePhase),
+    imag: a_real * Math.sin(timePhase) + a_imag * Math.cos(timePhase)
+  };
+  const b = {
+    real: b_real,
+    imag: b_imag
+  };
+  const c = {
+    real: c_real,
+    imag: c_imag
+  };
+  const d = {
+    real: d_real,
+    imag: d_imag
+  };
+  
+  // Calculate (a*z + b)
+  const numerator = {
+    real: a.real * z_real - a.imag * z_imag + b.real,
+    imag: a.real * z_imag + a.imag * z_real + b.imag
+  };
+  
+  // Calculate (c*z + d)
+  const denominator = {
+    real: c.real * z_real - c.imag * z_imag + d.real,
+    imag: c.real * z_imag + c.imag * z_real + d.imag
+  };
+  
+  // Calculate (a*z + b)/(c*z + d)
+  const denomMagnitudeSq = denominator.real * denominator.real + denominator.imag * denominator.imag;
+  
+  // Guard against division by zero
+  if (denomMagnitudeSq < 0.0001) {
+    // Return a large but finite value in the direction of the numerator
+    const numeratorMagnitude = Math.sqrt(numerator.real * numerator.real + numerator.imag * numerator.imag);
+    if (numeratorMagnitude < 0.0001) {
+      return new THREE.Vector3(0, 0, 0);
+    }
+    const scale = 1000 / numeratorMagnitude;
+    return new THREE.Vector3(numerator.real * scale, numerator.imag * scale, 0);
+  }
+  
+  // Perform complex division
+  const result = {
+    real: (numerator.real * denominator.real + numerator.imag * denominator.imag) / denomMagnitudeSq,
+    imag: (numerator.imag * denominator.real - numerator.real * denominator.imag) / denomMagnitudeSq
+  };
+  
+  // Return the transformed point (z')
+  return new THREE.Vector3(result.real, result.imag, 0);
+}
+
+/**
+ * Creates a matrix for a classical Möbius transformation.
+ * @param {number} x - The original x-coordinate.
+ * @param {number} y - The original y-coordinate.
+ * @param {number} time - Current time for animation.
+ * @param {object} params - Parameters controlling the Möbius transformation.
+ * @returns {THREE.Matrix4} A transformation matrix for the classical Möbius effect.
+ */
+function createClassicalMobiusMatrix(x, y, time, params) {
+  // Apply the Möbius transformation to get the new position
+  const transformedPos = applyClassicalMobius(x, y, time, params);
+  
+  // Create a translation matrix from the original position to the transformed position
+  const translationMatrix = new THREE.Matrix4();
+  translationMatrix.makeTranslation(
+    transformedPos.x - x,
+    transformedPos.y - y,
+    transformedPos.z
+  );
+  
+  return translationMatrix;
+}
+
+/**
  * Creates a matrix for an enhanced Möbius-like transformation with complex twist calculations.
  * @param {number} x - The original x-coordinate.
  * @param {number} y - The original y-coordinate.
@@ -115,6 +215,43 @@ export function createNoiseDisplacementMatrix(x, y, time, scale) {
 }
 
 /**
+ * Creates a matrix for the chosen Möbius transformation (either enhanced or classical).
+ * @param {number} x - The original x-coordinate.
+ * @param {number} y - The original y-coordinate.
+ * @param {number} z - The current z-coordinate (for 3D twist effects).
+ * @param {number} time - Current time for animation.
+ * @param {object} params - Parameters controlling the twist behaviors.
+ * @returns {THREE.Matrix4} A transformation matrix for the Möbius effect.
+ */
+function createMobiusMatrix(x, y, z, time, params) {
+  const { 
+    useClassicalMobius = false,
+    factor = 0.3, 
+    noiseScale = 0.5,
+    a_real = 1.0, a_imag = 0.0,
+    b_real = 0.0, b_imag = 0.0,
+    c_real = 0.0, c_imag = 0.0,
+    d_real = 1.0, d_imag = 0.0,
+    animationSpeed = 0.1
+  } = params;
+  
+  if (useClassicalMobius) {
+    return createClassicalMobiusMatrix(x, y, time, {
+      a_real, a_imag,
+      b_real, b_imag,
+      c_real, c_imag,
+      d_real, d_imag,
+      animationSpeed
+    });
+  } else {
+    return createEnhancedMobiusMatrix(x, y, z, time, {
+      factor,
+      noiseScale
+    });
+  }
+}
+
+/**
  * Combines all transformations into one final transformation matrix.
  * @param {number} baseX - Intrinsic x-coordinate from GridCell.
  * @param {number} baseY - Intrinsic y-coordinate from GridCell.
@@ -129,7 +266,15 @@ export function createCombinedMatrix(baseX, baseY, time, params) {
     chladniFrequencyX = 0.5,
     chladniFrequencyY = 0.5,
     mobiusFactor = 0.3,
-    noiseScale = 0.5,  // Default noise scale if not specified
+    noiseScale = 0.5,
+    
+    // Classical Möbius parameters
+    useClassicalMobius = false,
+    a_real = 1.0, a_imag = 0.0,
+    b_real = 0.0, b_imag = 0.0,
+    c_real = 0.0, c_imag = 0.0,
+    d_real = 1.0, d_imag = 0.0,
+    mobiusAnimationSpeed = 0.1
   } = params;
   
   // Create individual transformation matrices
@@ -149,10 +294,19 @@ export function createCombinedMatrix(baseX, baseY, time, params) {
   const tempMatrix = new THREE.Matrix4().multiplyMatrices(noiseMatrix, positionMatrix);
   tempVector.setFromMatrixPosition(tempMatrix);
   
-  // Create Möbius matrix with knowledge of current z position
-  const mobiusMatrix = createEnhancedMobiusMatrix(
-    baseX, baseY, tempVector.z, time, 
-    { factor: mobiusFactor, noiseScale }
+  // Create Möbius matrix with either classical or enhanced implementation
+  const mobiusMatrix = createMobiusMatrix(
+    tempVector.x, tempVector.y, tempVector.z, time, 
+    { 
+      useClassicalMobius,
+      factor: mobiusFactor, 
+      noiseScale,
+      a_real, a_imag,
+      b_real, b_imag,
+      c_real, c_imag,
+      d_real, d_imag,
+      animationSpeed: mobiusAnimationSpeed
+    }
   );
   
   // Create Chladni matrix with noise modulation

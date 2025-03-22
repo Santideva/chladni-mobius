@@ -18,6 +18,14 @@ export const stateStore = {
       // Möbius transformation parameters
       mobiusFactor: 0.3,
       
+      // Classical Möbius transformation parameters
+      useClassicalMobius: true, // Set to true to use classical Möbius transform instead of enhanced
+      a_real: 1.0, a_imag: 0.0,  // Default is identity transformation (z → z)
+      b_real: 0.0, b_imag: 0.0,
+      c_real: 0.0, c_imag: 0.0,
+      d_real: 1.0, d_imag: 0.0,
+      mobiusAnimationSpeed: 0.1,
+      
       // Noise parameters
       noiseScale: 0.5,  // Controls how much noise affects the transformations
       
