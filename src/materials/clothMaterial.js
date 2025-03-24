@@ -60,6 +60,8 @@ const createCombinedCellMobiusMaterial = (parameters = {}) => {
     uMaxSphericity: { value: params.MAX_SPHERICITY },
     uTransformCenters: { value: Array(10).fill().map(() => new THREE.Vector2(0, 0)) },
     uTransformRadii: { value: new Float32Array(10) },
+    uUseTexture: { value: params.useTexture || false },
+    uTexture: { value: params.texture || null },
     
     // Mobius-Chladni uniforms
     uTime: { value: 0.0 },
@@ -365,6 +367,8 @@ const createCombinedCellMobiusMaterial = (parameters = {}) => {
     uniform float uMaxSphericity;
     uniform vec2 uTransformCenters[10];
     uniform float uTransformRadii[10];
+    uniform bool uUseTexture;
+    uniform sampler2D uTexture;
     
     varying vec2 vUv;
     varying vec3 vPosition;
@@ -491,40 +495,44 @@ const createCombinedCellMobiusMaterial = (parameters = {}) => {
       }
     }
     
-    void main() {
-      vec2 point = vPosition.xy;
-      
-      // Calculate effective shape at this point
-      float sphericity, rotationalAngle, axisCount, rugosity;
-      getEffectiveShape(point, sphericity, rotationalAngle, axisCount, rugosity);
-      
-      // Calculate color based on transformation intensity
-      float totalIntensity = 0.0;
-      for (int i = 0; i < 10; i++) {
-        if (i >= uTransformCount) break;
-        totalIntensity += calculateIntensity(point, uTransformCenters[i], uTransformRadii[i]);
-      }
-      totalIntensity = min(1.0, totalIntensity);
-      
-      // Apply cell shape visualization
-      vec3 color = mix(uBaseColor, uActiveColor, totalIntensity);
-      
-      // Apply rotation symmetry effect
-      float angle = atan(point.y, point.x);
-      float rotSymEffect = mod(angle, rotationalAngle) / rotationalAngle;
-      color = mix(color, color * vec3(0.8, 1.0, 1.2), rotSymEffect * totalIntensity);
-      
-      // Apply rugosity effect (noise-like pattern)
-      float noiseEffect = fract(sin(dot(point, vec2(12.9898, 78.233))) * 43758.5453);
-      color = mix(color, color * vec3(1.0 + noiseEffect * 0.2), rugosity * totalIntensity);
-      
-      // Add z-position influence on color (from Chladni patterns)
-      float zInfluence = clamp(vPosition.z * 0.5 + 0.5, 0.0, 1.0);
-      color = mix(color, color * vec3(1.0 + zInfluence * 0.3, 1.0, 1.0 + zInfluence * 0.1), 0.3);
-      
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `;
+void main() {
+  vec2 point = vPosition.xy;
+  
+  // Calculate effective shape at this point (your existing logic)
+  float sphericity, rotationalAngle, axisCount, rugosity;
+  getEffectiveShape(point, sphericity, rotationalAngle, axisCount, rugosity);
+  
+  // Calculate transformation intensity (existing code)
+  float totalIntensity = 0.0;
+  for (int i = 0; i < 10; i++) {
+    if (i >= uTransformCount) break;
+    totalIntensity += calculateIntensity(point, uTransformCenters[i], uTransformRadii[i]);
+  }
+  totalIntensity = min(1.0, totalIntensity);
+  
+  // Compute base color from cell shape visualization using the calculated intensity
+  vec3 baseColorMix = mix(uBaseColor, uActiveColor, totalIntensity);
+  
+  // Optionally apply additional effects (rotation symmetry, noise, z influence, etc.)
+  float angle = atan(point.y, point.x);
+  float rotSymEffect = mod(angle, rotationalAngle) / rotationalAngle;
+  baseColorMix = mix(baseColorMix, baseColorMix * vec3(0.8, 1.0, 1.2), rotSymEffect * totalIntensity);
+  
+  float noiseEffect = fract(sin(dot(point, vec2(12.9898, 78.233))) * 43758.5453);
+  baseColorMix = mix(baseColorMix, baseColorMix * vec3(1.0 + noiseEffect * 0.2), rugosity * totalIntensity);
+  
+  float zInfluence = clamp(vPosition.z * 0.5 + 0.5, 0.0, 1.0);
+  baseColorMix = mix(baseColorMix, baseColorMix * vec3(1.0 + zInfluence * 0.3, 1.0, 1.0 + zInfluence * 0.1), 0.3);
+  
+  // If a texture is being used, sample the texture and modulate with baseColorMix
+  if(uUseTexture) {
+    vec4 texColor = texture2D(uTexture, vUv);
+    gl_FragColor = texColor * vec4(baseColorMix, 1.0);
+  } else {
+    gl_FragColor = vec4(baseColorMix, 1.0);
+  }
+}
+`;
   
   // Create the shader material
   const material = new THREE.ShaderMaterial({
@@ -559,6 +567,10 @@ const createCombinedCellMobiusMaterial = (parameters = {}) => {
       material.uniforms.uGridSize.value = size !== undefined ? size : material.uniforms.uGridSize.value;
       material.uniforms.uGridResolution.value = resolution !== undefined ? resolution : material.uniforms.uGridResolution.value;
       material.uniforms.uGridDensity.value = density !== undefined ? density : material.uniforms.uGridDensity.value;
+    },
+    updateTextureParameters: function(texture, useTexture) {
+      material.uniforms.uTexture.value = texture;
+      material.uniforms.uUseTexture.value = useTexture;
     },
     
     // Update Mobius-Chladni parameters

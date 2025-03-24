@@ -60,6 +60,8 @@ export function initRenderer(state) {
     gridSize: state.grid.size,
     gridResolution: state.grid.resolution,
     gridDensity: state.grid.density,
+    useTexture: state.appearance.useTexture,
+    texture: state.runtime.texture,
     // Appearance values are taken from state.appearance.
     // Ensure state.appearance exists and defines baseColor and activeColor.
     baseColor: new THREE.Color(state.appearance.baseColor),
@@ -85,7 +87,7 @@ export function initRenderer(state) {
   const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
   directionalLight.position.set(1, 1, 1);
   scene.add(directionalLight);
-  
+
   // Animation loop
   function animate() {
     requestAnimationFrame(animate);
@@ -213,6 +215,63 @@ export function initRenderer(state) {
     renderer.setSize(window.innerWidth, window.innerHeight);
     state.runtime.viewportNeedsUpdate = true;
   });
+
+// Create a texture loader
+const textureLoader = new THREE.TextureLoader();
+
+// Function to handle file uploads
+function handleTextureUpload(file) {
+  if (file.type.startsWith('image/')) {
+    // Handle image upload
+    const imageUrl = URL.createObjectURL(file);
+    textureLoader.load(
+      imageUrl,
+      (texture) => {
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        
+        state.runtime.texture = texture;
+        state.appearance.useTexture = true;
+        state.appearance.textureType = 'image';
+        
+        // Update material to use the texture
+        clothMaterial.updateTextureParameters(texture, true);
+        
+        // Clean up the temporary URL
+        URL.revokeObjectURL(imageUrl);
+      }
+    );
+  } else if (file.type.startsWith('video/')) {
+    // Handle video upload
+    const videoElement = document.createElement('video');
+    videoElement.src = URL.createObjectURL(file);
+    videoElement.loop = true;
+    videoElement.muted = true;
+    videoElement.play();
+    
+    const videoTexture = new THREE.VideoTexture(videoElement);
+    videoTexture.wrapS = THREE.RepeatWrapping;
+    videoTexture.wrapT = THREE.RepeatWrapping;
+    
+    state.runtime.texture = videoTexture;
+    state.runtime.videoElement = videoElement;
+    state.appearance.useTexture = true;
+    state.appearance.textureType = 'video';
+    
+    // Update material to use the video texture
+    clothMaterial.updateCellParameters(videoTexture, true);
+  }
+}  
+
+  // Set up the file upload handler
+  const fileInput = document.getElementById('texture-upload');
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleTextureUpload(e.target.files[0]);
+      }
+    });
+  }
 
   return { 
     renderer, 

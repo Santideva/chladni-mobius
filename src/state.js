@@ -35,10 +35,13 @@ export const stateStore = {
   },
   
   // Appearance settings
-  appearance: {
-    baseColor: 0xffffff,
-    activeColor: 0xffffff
-  },
+appearance: {
+  baseColor: 0xffffff,
+  activeColor: 0xffffff,
+  useTexture: false,
+  textureSource: null,
+  textureType: 'image' // or 'video'
+},
   
   // Camera control parameters...
   camera: {
