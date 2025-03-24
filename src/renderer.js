@@ -47,32 +47,50 @@ export function initRenderer(state) {
     planeSegments
   );
 
-  // Instantiate the cloth material using our custom shader material function.
-  // Here we initialize with parameters that yield a nearly flat appearance.
-  const clothMaterial = createCombinedCellMobiusMaterial({
-    chladniAmplitude: state.transform.chladniAmplitude,  // Use your state value
+  // Prepare all material parameters based on comprehensive uniform list
+  const materialParams = {
+    // Cell Shader Uniforms
+    baseColor: new THREE.Color(state.appearance.baseColor),
+    activeColor: new THREE.Color(state.appearance.activeColor),
+    propagationType: state.interactions.defaultPropagationType === 'gradient' ? 0 : 
+                     state.interactions.defaultPropagationType === 'sharp' ? 1 :
+                     state.interactions.defaultPropagationType === 'blended' ? 2 : 3,
+    snapIntensity: state.appearance.snapIntensity || 0.0,
+    heavisideThreshold: state.appearance.heavisideThreshold || 0.5,
+    gridSize: state.grid.size,
+    gridResolution: state.grid.resolution,
+    gridDensity: state.grid.density,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+    minSphericity: state.appearance.minSphericity || 0.0,
+    maxSphericity: state.appearance.maxSphericity || 1.0,
+    useTexture: state.appearance.useTexture,
+    texture: state.runtime.texture,
+    
+    // Mobius-Chladni Uniforms
+    chladniAmplitude: state.transform.chladniAmplitude,
     chladniFrequencyX: state.transform.chladniFrequencyX,
     chladniFrequencyY: state.transform.chladniFrequencyY,
     useClassicalMobius: state.transform.useClassicalMobius,
     mobiusFactor: state.transform.mobiusFactor,
     noiseScale: state.transform.noiseScale,
     animationSpeed: state.transform.animationSpeed,
-    gridSize: state.grid.size,
-    gridResolution: state.grid.resolution,
-    gridDensity: state.grid.density,
-    useTexture: state.appearance.useTexture,
-    texture: state.runtime.texture,
-    // Appearance values are taken from state.appearance.
-    // Ensure state.appearance exists and defines baseColor and activeColor.
-    baseColor: new THREE.Color(state.appearance.baseColor),
-    activeColor: new THREE.Color(state.appearance.activeColor)
-  });
+    
+    // Classical Möbius transformation parameters
+    a: new THREE.Vector2(state.transform.a_real, state.transform.a_imag),
+    b: new THREE.Vector2(state.transform.b_real, state.transform.b_imag),
+    c: new THREE.Vector2(state.transform.c_real, state.transform.c_imag),
+    d: new THREE.Vector2(state.transform.d_real, state.transform.d_imag)
+  };
+
+  // Instantiate the cloth material using our custom shader material function
+  const clothMaterial = createCombinedCellMobiusMaterial(materialParams);
   
-  // Create a mesh by combining the plane geometry with the custom cloth material.
+  // Create a mesh by combining the plane geometry with the custom cloth material
   const clothMesh = new THREE.Mesh(geometry, clothMaterial.material);
   scene.add(clothMesh);
   
-  // Store references to the cloth mesh and material in the runtime state for later use.
+  // Store references to the cloth mesh and material in the runtime state for later use
   state.runtime.clothMesh = clothMesh;
   state.runtime.clothMaterial = clothMaterial;
   
@@ -103,8 +121,8 @@ export function initRenderer(state) {
       state.transform.mobiusFactor = absValue * rotationDirection;
     }
     
-    // Update cloth material parameters based on current state
-    clothMaterial.updateMobiusChladniParameters({
+    // Prepare the Möbius transformation parameters
+    const mobiusParams = {
       chladniAmplitude: state.transform.chladniAmplitude,
       chladniFrequencyX: state.transform.chladniFrequencyX,
       chladniFrequencyY: state.transform.chladniFrequencyY,
@@ -112,12 +130,45 @@ export function initRenderer(state) {
       mobiusFactor: state.transform.mobiusFactor,
       noiseScale: state.transform.noiseScale,
       animationSpeed: state.transform.animationSpeed,
-      // Optionally update Mobius coefficients if in classical mode
-      a: state.transform.useClassicalMobius ? new THREE.Vector2(
-        Math.cos(state.time * 0.1), 
-        Math.sin(state.time * 0.1)
-      ) : undefined
-    });
+    };
+    
+    // Add Möbius complex coefficients if using classical mode
+    if (state.transform.useClassicalMobius) {
+      // Dynamic parameters if animation is enabled
+      if (state.transform.mobiusAnimationSpeed > 0) {
+        mobiusParams.a = new THREE.Vector2(
+          Math.cos(state.time * state.transform.mobiusAnimationSpeed), 
+          Math.sin(state.time * state.transform.mobiusAnimationSpeed)
+        );
+        // Keep static values for b, c, d from state or update dynamically if needed
+        mobiusParams.b = new THREE.Vector2(state.transform.b_real, state.transform.b_imag);
+        mobiusParams.c = new THREE.Vector2(state.transform.c_real, state.transform.c_imag);
+        mobiusParams.d = new THREE.Vector2(state.transform.d_real, state.transform.d_imag);  
+      } else {
+        // Static parameters from state
+        mobiusParams.a = new THREE.Vector2(state.transform.a_real, state.transform.a_imag);
+        mobiusParams.b = new THREE.Vector2(state.transform.b_real, state.transform.b_imag);
+        mobiusParams.c = new THREE.Vector2(state.transform.c_real, state.transform.c_imag);
+        mobiusParams.d = new THREE.Vector2(state.transform.d_real, state.transform.d_imag);
+      }
+    }
+    
+    // Update the appearance parameters
+    const appearanceParams = {
+      baseColor: new THREE.Color(state.appearance.baseColor),
+      activeColor: new THREE.Color(state.appearance.activeColor),
+      snapIntensity: state.appearance.snapIntensity || 0.0,
+      heavisideThreshold: state.appearance.heavisideThreshold || 0.5,
+      minSphericity: state.appearance.minSphericity || 0.0,
+      maxSphericity: state.appearance.maxSphericity || 1.0,
+      propagationType: state.interactions.defaultPropagationType === 'gradient' ? 0 : 
+                      state.interactions.defaultPropagationType === 'sharp' ? 1 :
+                      state.interactions.defaultPropagationType === 'blended' ? 2 : 3
+    };
+    
+    // Update cloth material with all parameters
+    clothMaterial.updateMobiusChladniParameters(mobiusParams);
+    clothMaterial.updateCellParameters(appearanceParams);
     
     // Update the material time uniform (this updates uTime, etc.)
     clothMaterial.update(0.01);
@@ -216,52 +267,52 @@ export function initRenderer(state) {
     state.runtime.viewportNeedsUpdate = true;
   });
 
-// Create a texture loader
-const textureLoader = new THREE.TextureLoader();
+  // Create a texture loader
+  const textureLoader = new THREE.TextureLoader();
 
-// Function to handle file uploads
-function handleTextureUpload(file) {
-  if (file.type.startsWith('image/')) {
-    // Handle image upload
-    const imageUrl = URL.createObjectURL(file);
-    textureLoader.load(
-      imageUrl,
-      (texture) => {
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        
-        state.runtime.texture = texture;
-        state.appearance.useTexture = true;
-        state.appearance.textureType = 'image';
-        
-        // Update material to use the texture
-        clothMaterial.updateTextureParameters(texture, true);
-        
-        // Clean up the temporary URL
-        URL.revokeObjectURL(imageUrl);
-      }
-    );
-  } else if (file.type.startsWith('video/')) {
-    // Handle video upload
-    const videoElement = document.createElement('video');
-    videoElement.src = URL.createObjectURL(file);
-    videoElement.loop = true;
-    videoElement.muted = true;
-    videoElement.play();
-    
-    const videoTexture = new THREE.VideoTexture(videoElement);
-    videoTexture.wrapS = THREE.RepeatWrapping;
-    videoTexture.wrapT = THREE.RepeatWrapping;
-    
-    state.runtime.texture = videoTexture;
-    state.runtime.videoElement = videoElement;
-    state.appearance.useTexture = true;
-    state.appearance.textureType = 'video';
-    
-    // Update material to use the video texture
-    clothMaterial.updateCellParameters(videoTexture, true);
-  }
-}  
+  // Function to handle file uploads
+  function handleTextureUpload(file) {
+    if (file.type.startsWith('image/')) {
+      // Handle image upload
+      const imageUrl = URL.createObjectURL(file);
+      textureLoader.load(
+        imageUrl,
+        (texture) => {
+          texture.wrapS = THREE.RepeatWrapping;
+          texture.wrapT = THREE.RepeatWrapping;
+          
+          state.runtime.texture = texture;
+          state.appearance.useTexture = true;
+          state.appearance.textureType = 'image';
+          
+          // Update material to use the texture
+          clothMaterial.updateTextureParameters(texture, true);
+          
+          // Clean up the temporary URL
+          URL.revokeObjectURL(imageUrl);
+        }
+      );
+    } else if (file.type.startsWith('video/')) {
+      // Handle video upload
+      const videoElement = document.createElement('video');
+      videoElement.src = URL.createObjectURL(file);
+      videoElement.loop = true;
+      videoElement.muted = true;
+      videoElement.play();
+      
+      const videoTexture = new THREE.VideoTexture(videoElement);
+      videoTexture.wrapS = THREE.RepeatWrapping;
+      videoTexture.wrapT = THREE.RepeatWrapping;
+      
+      state.runtime.texture = videoTexture;
+      state.runtime.videoElement = videoElement;
+      state.appearance.useTexture = true;
+      state.appearance.textureType = 'video';
+      
+      // Update material to use the video texture
+      clothMaterial.updateTextureParameters(videoTexture, true);
+    }
+  }  
 
   // Set up the file upload handler
   const fileInput = document.getElementById('texture-upload');

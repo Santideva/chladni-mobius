@@ -3,11 +3,12 @@ import * as THREE from 'three';
 export const stateStore = {
   // Grid dimensions...
   grid: {
-    rows: 32,
-    cols: 32,
-    resolution: 64,
-    density: 1.0,
-    needsUpdate: false
+    rows: 64,
+    cols: 64,
+    size: 8,
+    resolution: 128,
+    density: 2.0,
+    needsUpdate: true
   },
   
   // Transformation parameters...
@@ -17,6 +18,7 @@ export const stateStore = {
     chladniFrequencyY: 0.5,
     mobiusFactor: 0.3,
     useClassicalMobius: true,
+    // Complex numbers for classical Möbius transformation
     a_real: 1.0, a_imag: 0.0,
     b_real: 0.0, b_imag: 0.0,
     c_real: 0.0, c_imag: 0.0,
@@ -35,13 +37,18 @@ export const stateStore = {
   },
   
   // Appearance settings
-appearance: {
-  baseColor: 0xffffff,
-  activeColor: 0xffffff,
-  useTexture: false,
-  textureSource: null,
-  textureType: 'image' // or 'video'
-},
+  appearance: {
+    baseColor: 0xffffff,
+    activeColor: 0xffffff,
+    useTexture: false,
+    textureSource: null,
+    textureType: 'image', // or 'video'
+    // Additional appearance parameters for shaders
+    snapIntensity: 0.0,      // Controls discretization of values (0.0-1.0)
+    heavisideThreshold: 0.5, // Threshold for Heaviside step function
+    minSphericity: 0.0,      // Minimum cell sphericity
+    maxSphericity: 1.0       // Maximum cell sphericity
+  },
   
   // Camera control parameters...
   camera: {
@@ -69,17 +76,24 @@ appearance: {
     rotationDirection: 1,
     lastRotationTime: 0,
     rotationTimer: 0,
-    boundingBox: new THREE.Box3(),  // <-- Now THREE is defined
+    boundingBox: new THREE.Box3(),
     cameraTarget: { x: 0, y: 0, z: 0 },
     currentZoom: 10,
-    viewportNeedsUpdate: false
+    viewportNeedsUpdate: false,
+    // Added for textures and materials
+    texture: null,
+    videoElement: null,
+    clothMesh: null,
+    clothMaterial: null
   },
   
   // Interactions state
   interactions: {
     activeCellTransforms: [],
     defaultRadius: 0.5,
-    defaultPropagationType: 'gradient'
+    defaultPropagationType: 'gradient', // Options: 'gradient', 'sharp', 'blended', 'heaviside'
+    transformCenters: [], // Array to store centers of transformations
+    transformRadii: []    // Array to store radii of transformations
   }
 };
 
@@ -97,6 +111,14 @@ export function updateTime(newTime) {
  */
 export function updateTransformParams(newParams) {
   Object.assign(stateStore.transform, newParams);
+}
+
+/**
+ * Updates appearance parameters.
+ * @param {Object} newParams - The new appearance parameters to update.
+ */
+export function updateAppearanceParams(newParams) {
+  Object.assign(stateStore.appearance, newParams);
 }
 
 /**
@@ -122,6 +144,27 @@ export function toggleCameraAutoAdjust() {
  */
 export function updateRuntimeState(newParams) {
   Object.assign(stateStore.runtime, newParams);
+}
+
+/**
+ * Adds a cell transformation.
+ * @param {Object} center - The center point {x, y} of the transformation.
+ * @param {number} radius - The radius of the transformation.
+ * @param {string} propagationType - The type of propagation ('gradient', 'sharp', 'blended', 'heaviside').
+ */
+export function addCellTransform(center, radius, propagationType = stateStore.interactions.defaultPropagationType) {
+  stateStore.interactions.activeCellTransforms.push({
+    center,
+    radius,
+    propagationType
+  });
+}
+
+/**
+ * Clears all active cell transformations.
+ */
+export function clearCellTransforms() {
+  stateStore.interactions.activeCellTransforms = [];
 }
 
 /**
