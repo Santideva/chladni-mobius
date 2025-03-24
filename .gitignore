@@ -1,0 +1,33 @@
+# Node modules - do not commit dependencies
+/node_modules/
+
+# Build output directories (adjust if you have a different build folder)
+dist/
+build/
+
+# Vite cache and temporary files
+node_modules/.vite/
+
+# Environment variables (if any)
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Editor and IDE files (adjust as needed)
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Other temporary files
+tmp/
+temp/
