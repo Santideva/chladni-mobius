@@ -1,28 +1,31 @@
-// Vertex Shader
+// Mobius-Chladni Pattern Vertex Shader
+// A customizable shader that combines Chladni patterns with Mobius transformations
+// Can be used in Three.js or any WebGL framework with minor adjustments
+
+// Core timing
 uniform float uTime;
 
-// Chladni parameters
-uniform float uChladniAmplitude;
-uniform float uChladniFrequencyX;
-uniform float uChladniFrequencyY;
+// Chladni pattern parameters
+uniform float uChladniAmplitude; // Controls the height of the Chladni pattern
+uniform float uChladniFrequencyX; // X-axis frequency for the Chladni pattern
+uniform float uChladniFrequencyY; // Y-axis frequency for the Chladni pattern
 
-// Mobius parameters
-uniform bool uUseClassicalMobius;
-uniform float uMobiusFactor;
-uniform float uNoiseScale;
-uniform float uAnimationSpeed;
+// Mobius transformation parameters
+uniform bool uUseClassicalMobius; // Toggle between classical and enhanced Mobius
+uniform float uMobiusFactor; // Controls the intensity of the Mobius transformation
+uniform float uNoiseScale; // Controls the amount of noise influence
+uniform float uAnimationSpeed; // Controls animation speed
+
+// Classical Mobius transformation parameters (complex coefficients)
 uniform vec2 uA; // Complex number a (real, imag)
 uniform vec2 uB; // Complex number b (real, imag)
 uniform vec2 uC; // Complex number c (real, imag)
 uniform vec2 uD; // Complex number d (real, imag)
 
-// Simplex noise implementation
-// Description : Array and textureless GLSL 2D/3D simplex noise functions
-//      Author : Ian McEwan, Ashima Arts
-//  Maintainer : ijm
-//     Lastmod : 20110822 (ijm)
-//     License : Copyright (C) 2011 Ashima Arts. All rights reserved.
-//               Distributed under the MIT License
+// ======== Utility Functions ========
+
+// ---- Simplex Noise Implementation ----
+// Credit: Ian McEwan, Ashima Arts (MIT License)
 
 vec3 mod289(vec3 x) {
   return x - floor(x * (1.0 / 289.0)) * 289.0;
@@ -106,12 +109,13 @@ float snoise(vec3 v) {
   return 42.0 * dot(m*m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
 }
 
+// 2D simplex noise (uses 3D implementation)
 float snoise(vec2 v) {
-  // Convert 2D to 3D
   return snoise(vec3(v.x, v.y, 0.0));
 }
 
-// Complex number operations
+// ---- Complex Number Operations ----
+
 vec2 complex_mul(vec2 a, vec2 b) {
   return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
 }
@@ -119,7 +123,7 @@ vec2 complex_mul(vec2 a, vec2 b) {
 vec2 complex_div(vec2 a, vec2 b) {
   float denominator = b.x * b.x + b.y * b.y;
   if (denominator < 0.0001) {
-    // Return a large but finite value
+    // Return a large but finite value for small denominators
     float magnitude = sqrt(a.x * a.x + a.y * a.y);
     if (magnitude < 0.0001) return vec2(0.0, 0.0);
     float scale = 1000.0 / magnitude;
@@ -131,7 +135,9 @@ vec2 complex_div(vec2 a, vec2 b) {
   );
 }
 
-// Chladni transformation
+// ======== Transformation Functions ========
+
+// ---- Chladni Pattern Transformation ----
 vec3 applyChladniTransform(vec2 pos, float time) {
   // Basic Chladni pattern
   float baseZ = sin(uChladniFrequencyX * pos.x + time) * sin(uChladniFrequencyY * pos.y + time);
@@ -145,7 +151,7 @@ vec3 applyChladniTransform(vec2 pos, float time) {
   return vec3(pos.x, pos.y, z);
 }
 
-// Classical Möbius transformation
+// ---- Classical Möbius Transformation ----
 vec2 applyClassicalMobius(vec2 pos, float time) {
   // Create time-animated parameters
   float timePhase = time * uAnimationSpeed;
@@ -170,7 +176,7 @@ vec2 applyClassicalMobius(vec2 pos, float time) {
   return complex_div(numerator, denominator);
 }
 
-// Enhanced Möbius-like transformation with complex twist
+// ---- Enhanced Möbius-like Transformation ----
 vec3 applyEnhancedMobius(vec3 pos, float time) {
   // Calculate distance from origin for radial effects
   float distanceFromOrigin = length(pos.xy);
@@ -226,7 +232,7 @@ vec3 applyEnhancedMobius(vec3 pos, float time) {
   return rotated;
 }
 
-// Noise-based displacement
+// ---- Noise-based Displacement ----
 vec3 applyNoiseDisplacement(vec3 pos, float time) {
   float displacementX = snoise(vec3(pos.x * 0.2, pos.y * 0.2, time * 0.1)) * uNoiseScale;
   float displacementY = snoise(vec3(pos.x * 0.2, pos.y * 0.2, time * 0.15 + 100.0)) * uNoiseScale;
@@ -235,8 +241,9 @@ vec3 applyNoiseDisplacement(vec3 pos, float time) {
   return pos + vec3(displacementX, displacementY, displacementZ);
 }
 
+// ======== Main Shader Function ========
 void main() {
-  // Start with original vertex position (assuming baseX and baseY are in position attribute)
+  // Start with original vertex position
   vec3 pos = position;
   float time = uTime;
 

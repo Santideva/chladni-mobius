@@ -1,20 +1,33 @@
 import * as THREE from 'three';
 
-const createCellShapeShaderMaterial = ({ gridModule, parameters = {} }) => {
+const createStandaloneCellShaderMaterial = (parameters = {}) => {
   // Default parameters
   const defaults = {
     propagationType: 'gradient',
     snapIntensity: 1.0,
     heavisideThreshold: 0.5,
-    // Add colors for visualization
     baseColor: new THREE.Color(0x444444),
-    activeColor: new THREE.Color(0x0088ff)
+    activeColor: new THREE.Color(0x0088ff),
+    // Constants previously from gridModule
+    MIN_SPHERICITY: 0.1,
+    MAX_SPHERICITY: 0.9,
+    gridSize: 10.0,
+    gridResolution: 8.0,
+    gridDensity: 1.0
   };
   
   // Merge defaults with provided parameters
   const params = { ...defaults, ...parameters };
   
-  // Create a uniform object to hold transformation data
+  // Internal state tracking for viewport
+  const state = {
+    viewport: {
+      width: window.innerWidth,
+      height: window.innerHeight
+    }
+  };
+  
+  // Create a uniform object to hold all data
   const uniforms = {
     uBaseColor: { value: new THREE.Color(params.baseColor) },
     uActiveColor: { value: new THREE.Color(params.activeColor) },
@@ -22,13 +35,13 @@ const createCellShapeShaderMaterial = ({ gridModule, parameters = {} }) => {
     uSnapIntensity: { value: params.snapIntensity },
     uHeavisideThreshold: { value: params.heavisideThreshold },
     uTransformCount: { value: 0 },
-    uGridSize: { value: gridModule.renderUtils.calculateGridSize() },
-    uGridResolution: { value: gridModule.renderUtils.calculateGridResolution() },
-    uGridDensity: { value: gridModule.renderUtils.calculateGridDensity() },
-    uViewportWidth: { value: window.innerWidth },
-    uViewportHeight: { value: window.innerHeight },
-    uMinSphericity: { value: gridModule.mathConstants.MIN_SPHERICITY },
-    uMaxSphericity: { value: gridModule.mathConstants.MAX_SPHERICITY },
+    uGridSize: { value: params.gridSize },
+    uGridResolution: { value: params.gridResolution },
+    uGridDensity: { value: params.gridDensity },
+    uViewportWidth: { value: state.viewport.width },
+    uViewportHeight: { value: state.viewport.height },
+    uMinSphericity: { value: params.MIN_SPHERICITY },
+    uMaxSphericity: { value: params.MAX_SPHERICITY },
     // Array to store active transforms (up to 10 transforms)
     uTransformCenters: { value: Array(10).fill().map(() => new THREE.Vector2(0, 0)) },
     uTransformRadii: { value: new Float32Array(10) }
@@ -236,15 +249,17 @@ const createCellShapeShaderMaterial = ({ gridModule, parameters = {} }) => {
     
     // Update viewport dimensions
     updateViewport: (width, height) => {
+      state.viewport.width = width;
+      state.viewport.height = height;
       material.uniforms.uViewportWidth.value = width;
       material.uniforms.uViewportHeight.value = height;
     },
     
     // Update grid parameters
-    updateGridParameters: () => {
-      material.uniforms.uGridSize.value = gridModule.renderUtils.calculateGridSize();
-      material.uniforms.uGridResolution.value = gridModule.renderUtils.calculateGridResolution();
-      material.uniforms.uGridDensity.value = gridModule.renderUtils.calculateGridDensity();
+    updateGridParameters: (size, resolution, density) => {
+      material.uniforms.uGridSize.value = size !== undefined ? size : material.uniforms.uGridSize.value;
+      material.uniforms.uGridResolution.value = resolution !== undefined ? resolution : material.uniforms.uGridResolution.value;
+      material.uniforms.uGridDensity.value = density !== undefined ? density : material.uniforms.uGridDensity.value;
     },
     
     // Apply a transformation
@@ -287,6 +302,20 @@ const createCellShapeShaderMaterial = ({ gridModule, parameters = {} }) => {
     // Update heaviside threshold
     setHeavisideThreshold: (threshold) => {
       material.uniforms.uHeavisideThreshold.value = Math.max(0, Math.min(1, threshold));
-    }
+    },
+    
+    // Get current state of the shader
+    getState: () => ({
+      viewport: { ...state.viewport },
+      gridSize: material.uniforms.uGridSize.value,
+      gridResolution: material.uniforms.uGridResolution.value,
+      gridDensity: material.uniforms.uGridDensity.value,
+      propagationType: ['gradient', 'sharp', 'blended', 'heaviside'][material.uniforms.uPropagationType.value],
+      snapIntensity: material.uniforms.uSnapIntensity.value,
+      heavisideThreshold: material.uniforms.uHeavisideThreshold.value,
+      transformCount: material.uniforms.uTransformCount.value
+    })
   };
 };
+
+export { createStandaloneCellShaderMaterial };
