@@ -16,20 +16,21 @@ export const stateStore = {
     chladniAmplitude: 1.0,
     chladniFrequencyX: 0.5,
     chladniFrequencyY: 0.5,
-    mobiusFactor: 0.3,
+    mobiusFactor: 0.4,
     useClassicalMobius: true,
+    compensationFactor: .0,
     // Complex numbers for classical Möbius transformation
     a_real: 1.0, a_imag: 0.0,
     b_real: 0.0, b_imag: 0.0,
     c_real: 0.0, c_imag: 0.0,
     d_real: 1.0, d_imag: 0.0,
-    mobiusAnimationSpeed: 0.1,
+    mobiusAnimationSpeed: 0.0,
     noiseScale: 0.5,
     timeScaleChladni: 1.0,
     timeScaleMobius: 0.5,
     timeScaleNoise: 0.2,
     rotationModulation: {
-      enabled: true,
+      enabled: false,
       interval: 5.0,
       pattern: "kaprekar",
       patternThreshold: 3
@@ -59,7 +60,9 @@ export const stateStore = {
     zoomMargin: 1.5,
     rotationDamping: 0.3,
     lookAtCenter: true,
-    initialPosition: { x: 0, y: 0, z: 10 }
+    initialPosition: { x: 0, y: 0, z: 10 },
+    
+
   },
   
   // Audio-related state...
@@ -218,3 +221,4 @@ export function updateRotationDirection(currentTime) {
   
   return stateStore.runtime.rotationDirection;
 }
+

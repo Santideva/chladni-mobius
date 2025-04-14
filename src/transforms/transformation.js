@@ -149,42 +149,34 @@ function createClassicalMobiusMatrix(x, y, time, params) {
  * @returns {THREE.Matrix4} A combined rotation matrix for the Möbius effect.
  */
 export function createEnhancedMobiusMatrix(x, y, z, time, params) {
-  const { factor, noiseScale } = params;
+  // Destructure compensationFactor with a default value (range: 0 to 1)
+  const { factor, noiseScale, compensationFactor = 0.5 } = params;
   
-  // Calculate distance from origin for radial effects
-  const distanceFromOrigin = Math.sqrt(x*x + y*y);
-  
-  // Create noise-based twist angle variations
+  const distanceFromOrigin = Math.sqrt(x * x + y * y);
   const noiseFactor = noise2D(x * 0.2, y * 0.2) * noiseScale;
   
-  // Base twist calculation (distance-based)
+  // Original twist calculation
   let twistAngle = factor * distanceFromOrigin;
-  
-  // Enhance with z-coordinate influence (makes it truly 3D)
   twistAngle *= (1 + 0.5 * Math.sin(z * 0.5));
-  
-  // Add time-based animation and noise variation
   twistAngle += time * 0.1 * (1 + noiseFactor);
   
-  // Create rotation matrices for different axes
-  const rotationZ = new THREE.Matrix4().makeRotationZ(twistAngle);
+  // **Hybrid Behavior:**
+  // Adjust the twist angle to preserve organic motion while reducing the overall rotation.
+  // const adjustedTwistAngle = 0;
   
-  // Calculate secondary rotation angle based on position and noise
+  // Create rotation around the Z-axis with the adjusted angle.
+  const rotationZ = new THREE.Matrix4().makeRotationZ(adjustedTwistAngle);
+  
   const secondaryAngle = factor * 0.5 * (
     Math.sin(distanceFromOrigin) + 
     noise2D(x * 0.1 + time * 0.05, y * 0.1) * noiseScale * 0.5
   );
   
-  // Create rotation around Y axis (adds interesting warping)
   const rotationY = new THREE.Matrix4().makeRotationY(secondaryAngle);
-  
-  // Create rotation around X axis (completes the 3D effect)
   const rotationX = new THREE.Matrix4().makeRotationX(
     factor * 0.3 * noise2D(x * 0.15, time * 0.05) * noiseScale
   );
   
-  // Combine matrices: first rotateZ, then rotateY, then rotateX
-  // This creates a complex, organic-feeling twist
   const combinedRotation = new THREE.Matrix4();
   combinedRotation.multiply(rotationX);
   combinedRotation.multiply(rotationY);
@@ -232,7 +224,8 @@ function createMobiusMatrix(x, y, z, time, params) {
     b_real = 0.0, b_imag = 0.0,
     c_real = 0.0, c_imag = 0.0,
     d_real = 1.0, d_imag = 0.0,
-    animationSpeed = 0.1
+    animationSpeed = 0.1,
+    compensationFactor // Expect this parameter to be provided in stateStore.transform if desired.
   } = params;
   
   if (useClassicalMobius) {
@@ -246,7 +239,8 @@ function createMobiusMatrix(x, y, z, time, params) {
   } else {
     return createEnhancedMobiusMatrix(x, y, z, time, {
       factor,
-      noiseScale
+      noiseScale,
+      compensationFactor // Pass along the compensationFactor for hybrid behavior.
     });
   }
 }
@@ -357,4 +351,35 @@ export function transformPosition(x, y) {
     y: position.y,
     z: position.z
   };
+} 
+
+/**
+ * Computes the twist angle used in the enhanced Möbius transformation.
+ * @param {number} x - The original x-coordinate.
+ * @param {number} y - The original y-coordinate.
+ * @param {number} z - The current z-coordinate.
+ * @param {number} time - Current time (for animation).
+ * @param {object} params - Parameters controlling the twist behaviors (must include factor and noiseScale).
+ * @returns {number} The computed twist angle.
+ */
+export function computeTwistAngle(x, y, z, time, params) {
+  
+  const { factor, noiseScale } = params;
+  // Compute distance from origin for radial effects
+  const distanceFromOrigin = Math.sqrt(x * x + y * y);
+  
+  // Create noise-based twist angle variations
+  // (Ensure you import and use noise2D consistently)
+  const noiseFactor = noise2D(x * 0.2, y * 0.2) * noiseScale;
+  
+  // Base twist calculation (distance-based)
+  let twistAngle = factor * distanceFromOrigin;
+  
+  // Enhance with z-coordinate influence (makes it truly 3D)
+  twistAngle *= (1 + 0.5 * Math.sin(z * 0.5));
+  
+  // Add time-based animation and noise variation
+  twistAngle += time * 0.1 * (1 + noiseFactor);
+  
+  return twistAngle;
 }

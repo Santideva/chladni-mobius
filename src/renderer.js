@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import createCombinedCellMobiusMaterial from './materials/clothMaterial.js';
 import { updateRotationDirection } from './state.js';
+import { computeTwistAngle } from './transforms/transformation.js';
 
 export function initRenderer(state) {
   // Retrieve the canvas element
@@ -235,6 +236,25 @@ export function initRenderer(state) {
           state.runtime.cameraTarget.z
         );
       }
+    }
+    
+    // --- Camera Compensation for Twist ---
+    // Use computeTwistAngle to retrieve the twist angle from transformation.js
+    if (state.transform.compensationFactor !== undefined) {
+      // Use the grid center as a representative sample point
+      const sampleX = state.grid.size / 2;
+      const sampleY = state.grid.size / 2;
+      const sampleZ = 0; // Use 0 as a simple approximation for z
+      // Compute the twist angle with the shared helper function
+      const twistAngle = computeTwistAngle(
+        sampleX,
+        sampleY,
+        sampleZ,
+        state.time,
+        { factor: state.transform.mobiusFactor, noiseScale: state.transform.noiseScale }
+      );
+      const compensationAngle = twistAngle * state.transform.compensationFactor;
+      camera.rotation.z = -compensationAngle;
     }
     
     // Apply any active cell transformations (if any)
